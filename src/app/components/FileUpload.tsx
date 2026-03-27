@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { Badge } from "./ui/badge";
-import { Upload, FileJson, X, Trash2 } from 'lucide-react';
+import { Upload, FileJson, FolderOpen, Trash2 } from 'lucide-react';
 import { ScrollArea } from "./ui/scroll-area";
 
 interface TrajectoryFile {
@@ -28,6 +28,11 @@ export function FileUpload({
   onRemoveFile,
 }: FileUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
+  const projectJsonlFiles = import.meta.glob('../../../jsonl/*.jsonl', {
+    eager: true,
+    query: '?raw',
+    import: 'default',
+  }) as Record<string, string>;
 
   const handleFileRead = async (files: FileList) => {
     const newFiles: TrajectoryFile[] = [];
@@ -83,6 +88,38 @@ export function FileUpload({
     }
   };
 
+  const handleLoadProjectJsonl = () => {
+    const entries = Object.entries(projectJsonlFiles);
+    if (entries.length === 0) {
+      alert('No .jsonl files found in Trajectoryvisualizationwebpage/jsonl.');
+      return;
+    }
+
+    const newFiles: TrajectoryFile[] = [];
+    entries.forEach(([path, text], index) => {
+      try {
+        const lines = text.split('\n').filter(line => line.trim());
+        const parsedData = lines.map(line => JSON.parse(line));
+        const name = path.split('/').pop() || `trajectory_${index + 1}.jsonl`;
+
+        newFiles.push({
+          id: `${name}-${Date.now()}-${index}`,
+          name,
+          data: parsedData,
+          uploadedAt: new Date(),
+        });
+      } catch (error) {
+        console.error(`Error parsing ${path}:`, error);
+      }
+    });
+
+    if (newFiles.length > 0) {
+      onFilesLoaded([...loadedFiles, ...newFiles]);
+    } else {
+      alert('Found files, but none could be parsed as valid JSONL.');
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Upload Area */}
@@ -103,25 +140,36 @@ export function FileUpload({
           <div>
             <h3 className="mb-2 text-gray-200">Upload Trajectory JSONL Files</h3>
             <p className="text-sm text-gray-400 mb-4">
-              Drag and drop JSONL files here, or click to browse
+              Drag and drop JSONL files, upload files, or load from project jsonl folder
             </p>
           </div>
-          <label htmlFor="file-upload">
-            <Button type="button" asChild className="bg-green-600 hover:bg-green-700 text-white">
-              <span>
-                <FileJson className="size-4 mr-2" />
-                Select Files
-              </span>
+          <div className="flex flex-wrap justify-center gap-2">
+            <label htmlFor="file-upload">
+              <Button type="button" asChild className="bg-green-600 hover:bg-green-700 text-white">
+                <span>
+                  <FileJson className="size-4 mr-2" />
+                  Upload Files
+                </span>
+              </Button>
+              <input
+                id="file-upload"
+                type="file"
+                multiple
+                accept=".jsonl"
+                onChange={handleFileInput}
+                className="hidden"
+              />
+            </label>
+
+            <Button
+              type="button"
+              className="bg-blue-600 hover:bg-blue-700 text-white border border-blue-500"
+              onClick={handleLoadProjectJsonl}
+            >
+              <FolderOpen className="size-4 mr-2" />
+            
             </Button>
-            <input
-              id="file-upload"
-              type="file"
-              multiple
-              accept=".jsonl"
-              onChange={handleFileInput}
-              className="hidden"
-            />
-          </label>
+          </div>
         </div>
       </Card>
 

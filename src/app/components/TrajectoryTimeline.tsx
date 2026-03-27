@@ -3,7 +3,7 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Card } from "./ui/card";
 import { Badge } from "./ui/badge";
-import { ChevronDown, ChevronRight, MessageSquare, Code2, Terminal, Zap, CheckCircle2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Code2, Terminal, Zap, CheckCircle2 } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface CodeBlock {
@@ -26,6 +26,8 @@ interface IterationData {
   code_blocks: CodeBlock[];
   final_answer: any;
   iteration_time: number;
+  completion_id?: number;
+  completion_iteration?: number;
 }
 
 interface TrajectoryTimelineProps {
@@ -48,27 +50,52 @@ const DepthBadge = ({ depth }: { depth: number }) => {
   );
 };
 
+const clampByLines = (text: string, maxLines = 4) => {
+  const lines = text.split('\n');
+  const isClamped = lines.length > maxLines;
+  return {
+    text: isClamped ? lines.slice(0, maxLines).join('\n') : text,
+    isClamped,
+  };
+};
+
+const stripLeadingBlankLines = (text: string) => text.replace(/^(?:[ \t]*\n)+/, '');
+const stripReplCodeBlocks = (text: string) =>
+  text.replace(/```repl[\s\S]*?```/gi, '').replace(/\n{3,}/g, '\n\n');
+
 const IterationCard = ({ iteration, index }: { iteration: IterationData; index: number }) => {
   const [isExpanded, setIsExpanded] = useState(true);
-  const [expandedBlocks, setExpandedBlocks] = useState<Set<number>>(new Set([0]));
+  const [isResponseExpanded, setIsResponseExpanded] = useState(false);
+  const [expandedCodeBlocks, setExpandedCodeBlocks] = useState<Set<number>>(new Set());
+  const [expandedOutputs, setExpandedOutputs] = useState<Set<number>>(new Set());
 
-  const toggleBlock = (blockIndex: number) => {
-    const newExpanded = new Set(expandedBlocks);
-    if (newExpanded.has(blockIndex)) {
-      newExpanded.delete(blockIndex);
+  const toggleCodeExpand = (blockIndex: number) => {
+    const next = new Set(expandedCodeBlocks);
+    if (next.has(blockIndex)) {
+      next.delete(blockIndex);
     } else {
-      newExpanded.add(blockIndex);
+      next.add(blockIndex);
     }
-    setExpandedBlocks(newExpanded);
+    setExpandedCodeBlocks(next);
   };
 
-  // Extract query from prompt
-  const userMessage = iteration.prompt?.find(m => m.role === 'user');
-  const query = userMessage?.content || '';
+  const toggleOutputExpand = (blockIndex: number) => {
+    const next = new Set(expandedOutputs);
+    if (next.has(blockIndex)) {
+      next.delete(blockIndex);
+    } else {
+      next.add(blockIndex);
+    }
+    setExpandedOutputs(next);
+  };
 
-  const hasRLMCalls = iteration.code_blocks?.some(block => 
-    block.result.rlm_calls && block.result.rlm_calls.length > 0
-  );
+  const normalizedResponse = stripLeadingBlankLines(
+    stripReplCodeBlocks(iteration.response || '')
+  ).trim();
+  const hasVisibleResponse = normalizedResponse.length > 0;
+  const displayedResponse = isResponseExpanded
+    ? normalizedResponse
+    : clampByLines(normalizedResponse).text;
 
   return (
     <motion.div
@@ -99,6 +126,11 @@ const IterationCard = ({ iteration, index }: { iteration: IterationData; index: 
                 <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/50 border font-mono">
                   Iteration {iteration.iteration}
                 </Badge>
+                {typeof iteration.completion_iteration === "number" && (
+                  <Badge className="bg-cyan-500/20 text-cyan-300 border-cyan-500/50 border font-mono">
+                    step {iteration.completion_iteration}
+                  </Badge>
+                )}
                 <DepthBadge depth={0} />
               </div>
               <span className="text-blue-400 font-mono">RLM Call</span>
@@ -117,30 +149,28 @@ const IterationCard = ({ iteration, index }: { iteration: IterationData; index: 
 
         {isExpanded && (
           <div className="p-6 space-y-4">
-            {/* Query */}
-            {query && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-gray-400">
-                  <MessageSquare className="size-4" />
-                  <span className="text-sm">Query:</span>
-                </div>
-                <div className="pl-6 text-gray-300 text-sm border-l-2 border-gray-700 ml-2">
-                  "{query.substring(0, 200)}{query.length > 200 ? '...' : ''}"
-                </div>
-              </div>
-            )}
-
             {/* Response */}
-            {iteration.response && (
+            {hasVisibleResponse && (
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-gray-400">
                   <Code2 className="size-4" />
                   <span className="text-sm">Response:</span>
                 </div>
                 <div className="pl-6 border-l-2 border-gray-700 ml-2">
-                  <pre className="text-sm text-gray-300 whitespace-pre-wrap">
-                    {iteration.response}
-                  </pre>
+                  <div className="overflow-x-auto max-w-full" style={{ overflowX: 'auto' }}>
+                    <pre className="m-0 text-sm text-gray-300 whitespace-pre font-mono inline-block min-w-full w-max">
+                      {displayedResponse}
+                    </pre>
+                  </div>
+                  {clampByLines(normalizedResponse).isClamped && (
+                    <button
+                      type="button"
+                      className="mt-2 text-xs text-blue-400 hover:text-blue-300"
+                      onClick={() => setIsResponseExpanded(!isResponseExpanded)}
+                    >
+                      {isResponseExpanded ? 'Collapse' : 'Expand'}
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -148,15 +178,7 @@ const IterationCard = ({ iteration, index }: { iteration: IterationData; index: 
             {/* Code Blocks */}
             {iteration.code_blocks?.map((block, blockIndex) => (
               <div key={blockIndex} className="space-y-2">
-                <div 
-                  className="flex items-center gap-2 text-gray-400 cursor-pointer hover:text-gray-300"
-                  onClick={() => toggleBlock(blockIndex)}
-                >
-                  {expandedBlocks.has(blockIndex) ? (
-                    <ChevronDown className="size-4" />
-                  ) : (
-                    <ChevronRight className="size-4" />
-                  )}
+                <div className="flex items-center gap-2 text-gray-400">
                   <Code2 className="size-4" />
                   <span className="text-sm">Code Block {blockIndex + 1}</span>
                   {block.result.execution_time && (
@@ -165,65 +187,100 @@ const IterationCard = ({ iteration, index }: { iteration: IterationData; index: 
                     </span>
                   )}
                 </div>
-
-                {expandedBlocks.has(blockIndex) && (
-                  <div className="pl-6 border-l-2 border-blue-500/50 ml-2 space-y-3">
-                    {/* Code */}
-                    <div className="rounded-lg overflow-hidden border border-gray-700/50">
+                <div className="pl-6 border-l-2 border-blue-500/50 ml-2 space-y-3">
+                  {/* Code */}
+                  <div
+                    className="rounded-lg border border-gray-700/50 overflow-x-auto max-w-full"
+                    style={{ overflowX: 'auto' }}
+                  >
+                    <div className="min-w-max">
                       <SyntaxHighlighter
                         language="python"
                         style={vscDarkPlus}
+                        wrapLongLines={false}
+                        codeTagProps={{ style: { whiteSpace: 'pre' } }}
                         customStyle={{
                           margin: 0,
                           background: '#1a1a1a',
                           fontSize: '0.875rem',
+                          whiteSpace: 'pre',
+                          minWidth: '100%',
+                          width: 'max-content',
                         }}
                       >
-                        {block.code}
+                        {expandedCodeBlocks.has(blockIndex)
+                          ? block.code
+                          : clampByLines(block.code).text}
                       </SyntaxHighlighter>
                     </div>
-
-                    {/* Stdout Output */}
-                    {block.result.stdout && (
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2 text-green-400 text-sm">
-                          <Terminal className="size-4" />
-                          <span>Output:</span>
-                        </div>
-                        <div className="bg-black/50 rounded-lg p-3 border border-green-500/20">
-                          <pre className="text-sm text-green-400/90 whitespace-pre-wrap font-mono">
-                            {block.result.stdout}
-                          </pre>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* RLM Calls Indicator */}
-                    {block.result.rlm_calls && block.result.rlm_calls.length > 0 && (
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2 text-purple-400 text-sm">
-                          <Zap className="size-4" />
-                          <span>Spawning recursive call for detailed analysis...</span>
-                        </div>
-                        <div className="bg-purple-500/10 rounded-lg p-3 border border-purple-500/30">
-                          <div className="flex items-center gap-2 text-green-400 text-sm">
-                            <CheckCircle2 className="size-4" />
-                            <span>Received result from depth={iteration.iteration} call</span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Stderr */}
-                    {block.result.stderr && (
-                      <div className="bg-red-500/10 rounded-lg p-3 border border-red-500/30">
-                        <pre className="text-sm text-red-400 whitespace-pre-wrap font-mono">
-                          {block.result.stderr}
-                        </pre>
-                      </div>
-                    )}
                   </div>
-                )}
+                  {clampByLines(block.code).isClamped && (
+                    <button
+                      type="button"
+                      className="text-xs text-blue-400 hover:text-blue-300"
+                      onClick={() => toggleCodeExpand(blockIndex)}
+                    >
+                      {expandedCodeBlocks.has(blockIndex) ? 'Collapse' : 'Expand'}
+                    </button>
+                  )}
+
+                  {/* Stdout Output */}
+                  {block.result.stdout && (
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-green-400 text-sm">
+                        <Terminal className="size-4" />
+                        <span>Output:</span>
+                      </div>
+                      <div
+                        className="bg-black/50 rounded-lg p-3 border border-green-500/20 overflow-x-auto max-w-full"
+                        style={{ overflowX: 'auto' }}
+                      >
+                        <pre className="m-0 text-sm text-green-400/90 whitespace-pre font-mono inline-block min-w-full w-max">
+                          {expandedOutputs.has(blockIndex)
+                            ? block.result.stdout
+                            : clampByLines(block.result.stdout).text}
+                        </pre>
+                        {clampByLines(block.result.stdout).isClamped && (
+                          <button
+                            type="button"
+                            className="mt-2 text-xs text-blue-400 hover:text-blue-300"
+                            onClick={() => toggleOutputExpand(blockIndex)}
+                          >
+                            {expandedOutputs.has(blockIndex) ? 'Collapse' : 'Expand'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* RLM Calls Indicator */}
+                  {block.result.rlm_calls && block.result.rlm_calls.length > 0 && (
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-purple-400 text-sm">
+                        <Zap className="size-4" />
+                        <span>Spawning recursive call for detailed analysis...</span>
+                      </div>
+                      <div className="bg-purple-500/10 rounded-lg p-3 border border-purple-500/30">
+                        <div className="flex items-center gap-2 text-green-400 text-sm">
+                          <CheckCircle2 className="size-4" />
+                          <span>Received result from depth={iteration.iteration} call</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Stderr */}
+                  {block.result.stderr && (
+                    <div
+                      className="bg-red-500/10 rounded-lg p-3 border border-red-500/30 overflow-x-auto max-w-full"
+                      style={{ overflowX: 'auto' }}
+                    >
+                      <pre className="m-0 text-sm text-red-400 whitespace-pre font-mono inline-block min-w-full w-max">
+                        {block.result.stderr}
+                      </pre>
+                    </div>
+                  )}
+                </div>
               </div>
             ))}
 
@@ -235,8 +292,11 @@ const IterationCard = ({ iteration, index }: { iteration: IterationData; index: 
                   <span className="text-sm font-semibold">Final Answer:</span>
                 </div>
                 <div className="pl-6 border-l-2 border-green-500 ml-2">
-                  <div className="bg-green-500/10 rounded-lg p-4 border border-green-500/30">
-                    <pre className="text-sm text-green-300 whitespace-pre-wrap">
+                  <div
+                    className="bg-green-500/10 rounded-lg p-4 border border-green-500/30 overflow-x-auto max-w-full"
+                    style={{ overflowX: 'auto' }}
+                  >
+                    <pre className="m-0 text-sm text-green-300 whitespace-pre font-mono inline-block min-w-full w-max">
                       {typeof iteration.final_answer === 'string'
                         ? iteration.final_answer
                         : JSON.stringify(iteration.final_answer, null, 2)}
@@ -253,10 +313,54 @@ const IterationCard = ({ iteration, index }: { iteration: IterationData; index: 
 };
 
 export function TrajectoryTimeline({ iterations }: TrajectoryTimelineProps) {
+  const groups = (() => {
+    const grouped: Array<{
+      key: string;
+      completionId: number | null;
+      items: IterationData[];
+    }> = [];
+    const indexByKey = new Map<string, number>();
+
+    iterations.forEach((iteration, idx) => {
+      const hasCompletionId = typeof iteration.completion_id === "number";
+      const key = hasCompletionId ? `c:${iteration.completion_id}` : `legacy:${idx}`;
+      const completionId = hasCompletionId ? (iteration.completion_id as number) : null;
+      const existing = indexByKey.get(key);
+      if (existing === undefined) {
+        indexByKey.set(key, grouped.length);
+        grouped.push({ key, completionId, items: [iteration] });
+      } else {
+        grouped[existing].items.push(iteration);
+      }
+    });
+
+    return grouped;
+  })();
+
   return (
     <div className="space-y-6">
-      {iterations.map((iteration, index) => (
-        <IterationCard key={index} iteration={iteration} index={index} />
+      {groups.map((group, groupIdx) => (
+        <div key={group.key} className="space-y-3">
+          {group.completionId !== null && (
+            <div className="sticky top-0 z-10">
+              <div className="inline-flex items-center gap-2 rounded-md border border-gray-700 bg-gray-900/90 px-3 py-1 backdrop-blur-sm">
+                <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/50 border font-mono">
+                  Completion {group.completionId}
+                </Badge>
+                <span className="text-xs text-gray-400">
+                  {group.items.length} iterations
+                </span>
+              </div>
+            </div>
+          )}
+          {group.items.map((iteration, itemIdx) => (
+            <IterationCard
+              key={`${group.key}-${iteration.iteration}-${itemIdx}`}
+              iteration={iteration}
+              index={groupIdx === 0 ? itemIdx : itemIdx + 1}
+            />
+          ))}
+        </div>
       ))}
     </div>
   );

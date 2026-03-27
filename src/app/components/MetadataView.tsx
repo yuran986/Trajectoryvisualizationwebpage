@@ -1,7 +1,7 @@
 import React from 'react';
 import { Card } from "./ui/card";
 import { Badge } from "./ui/badge";
-import { Info, Database, Layers, Clock } from 'lucide-react';
+import { Info, Database, Layers, Clock, MessageSquare } from 'lucide-react';
 
 interface MetadataProps {
   metadata: {
@@ -14,15 +14,29 @@ interface MetadataProps {
     environment_type?: string;
     [key: string]: any;
   } | null;
+  query?: unknown;
 }
 
-export function MetadataView({ metadata }: MetadataProps) {
+export function MetadataView({ metadata, query = '' }: MetadataProps) {
   if (!metadata) return null;
 
   const formatTimestamp = (timestamp?: string) => {
     if (!timestamp) return 'N/A';
     return new Date(timestamp).toLocaleString();
   };
+
+  const formatQuery = (value: unknown): string => {
+    if (value === null || value === undefined) return '';
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+    try {
+      return JSON.stringify(value, null, 2);
+    } catch {
+      return String(value);
+    }
+  };
+
+  const queryText = formatQuery(query);
 
   return (
     <Card className="p-4 mb-4 bg-gray-900 border-gray-700">
@@ -92,6 +106,20 @@ export function MetadataView({ metadata }: MetadataProps) {
           </div>
         )}
       </div>
+
+      {queryText && (
+        <div className="mt-4 pt-4 border-t border-gray-800 space-y-2">
+          <div className="flex items-center gap-2 text-gray-400">
+            <MessageSquare className="size-4" />
+            <span className="text-sm">Query</span>
+          </div>
+          <div className="overflow-x-auto">
+            <pre className="m-0 text-sm text-gray-300 whitespace-pre font-mono leading-relaxed">
+              {queryText}
+            </pre>
+          </div>
+        </div>
+      )}
     </Card>
   );
 }

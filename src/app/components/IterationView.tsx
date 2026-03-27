@@ -9,7 +9,6 @@ import {
 } from "./ui/accordion";
 import { Card } from "./ui/card";
 import { Badge } from "./ui/badge";
-import { Separator } from "./ui/separator";
 import { Clock, Code, Terminal, MessageSquare } from 'lucide-react';
 
 interface CodeBlock {
@@ -38,6 +37,9 @@ interface IterationViewProps {
   iteration: IterationData;
 }
 
+const stripReplCodeBlocks = (text: string) =>
+  text.replace(/```repl[\s\S]*?```/gi, '').replace(/\n{3,}/g, '\n\n').trim();
+
 export function IterationView({ iteration }: IterationViewProps) {
   const formatTimestamp = (timestamp: string) => {
     return new Date(timestamp).toLocaleString();
@@ -46,6 +48,7 @@ export function IterationView({ iteration }: IterationViewProps) {
   const formatTime = (time: number) => {
     return `${time.toFixed(3)}s`;
   };
+  const filteredResponse = stripReplCodeBlocks(iteration.response || '');
 
   return (
     <Card className="p-6 mb-4">
@@ -64,21 +67,23 @@ export function IterationView({ iteration }: IterationViewProps) {
 
       <Accordion type="multiple" className="w-full">
         {/* Response Section */}
-        <AccordionItem value="response">
-          <AccordionTrigger className="hover:no-underline">
-            <div className="flex items-center gap-2">
-              <MessageSquare className="size-4" />
-              <span>Response</span>
-            </div>
-          </AccordionTrigger>
-          <AccordionContent>
-            <div className="p-4 bg-muted/50 rounded-md">
-              <pre className="whitespace-pre-wrap break-words text-sm">
-                {iteration.response}
-              </pre>
-            </div>
-          </AccordionContent>
-        </AccordionItem>
+        {filteredResponse && (
+          <AccordionItem value="response">
+            <AccordionTrigger className="hover:no-underline">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="size-4" />
+                <span>Response</span>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent>
+              <div className="p-4 bg-muted/50 rounded-md overflow-x-auto max-w-full" style={{ overflowX: 'auto' }}>
+                <pre className="whitespace-pre text-sm font-mono inline-block min-w-full w-max">
+                  {filteredResponse}
+                </pre>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        )}
 
         {/* Code Blocks Section */}
         {iteration.code_blocks && iteration.code_blocks.length > 0 && (
@@ -102,17 +107,24 @@ export function IterationView({ iteration }: IterationViewProps) {
                       )}
                     </div>
                     
-                    <div className="p-0">
-                      <SyntaxHighlighter
-                        language="python"
-                        style={vscDarkPlus}
-                        customStyle={{
-                          margin: 0,
-                          borderRadius: 0,
-                        }}
-                      >
-                        {block.code}
-                      </SyntaxHighlighter>
+                    <div className="p-0 overflow-x-auto max-w-full" style={{ overflowX: 'auto' }}>
+                      <div className="min-w-max">
+                        <SyntaxHighlighter
+                          language="python"
+                          style={vscDarkPlus}
+                          wrapLongLines={false}
+                          codeTagProps={{ style: { whiteSpace: 'pre' } }}
+                          customStyle={{
+                            margin: 0,
+                            borderRadius: 0,
+                            whiteSpace: 'pre',
+                            minWidth: '100%',
+                            width: 'max-content',
+                          }}
+                        >
+                          {block.code}
+                        </SyntaxHighlighter>
+                      </div>
                     </div>
 
                     {/* Stdout Output */}
@@ -122,8 +134,8 @@ export function IterationView({ iteration }: IterationViewProps) {
                           <Terminal className="size-4" />
                           <span className="text-sm">Standard Output</span>
                         </div>
-                        <div className="p-4 bg-black text-green-400 font-mono text-sm">
-                          <pre className="whitespace-pre-wrap break-words">
+                        <div className="p-4 bg-black text-green-400 font-mono text-sm overflow-x-auto max-w-full" style={{ overflowX: 'auto' }}>
+                          <pre className="whitespace-pre inline-block min-w-full w-max">
                             {block.result.stdout}
                           </pre>
                         </div>
@@ -137,8 +149,8 @@ export function IterationView({ iteration }: IterationViewProps) {
                           <Terminal className="size-4" />
                           <span className="text-sm">Standard Error</span>
                         </div>
-                        <div className="p-4 bg-black text-red-400 font-mono text-sm">
-                          <pre className="whitespace-pre-wrap break-words">
+                        <div className="p-4 bg-black text-red-400 font-mono text-sm overflow-x-auto max-w-full" style={{ overflowX: 'auto' }}>
+                          <pre className="whitespace-pre inline-block min-w-full w-max">
                             {block.result.stderr}
                           </pre>
                         </div>
@@ -178,9 +190,11 @@ export function IterationView({ iteration }: IterationViewProps) {
                     </Badge>
                   </div>
                   <div className="p-4">
-                    <pre className="whitespace-pre-wrap break-words text-sm">
-                      {message.content}
-                    </pre>
+                    <div className="overflow-x-auto max-w-full" style={{ overflowX: 'auto' }}>
+                      <pre className="whitespace-pre text-sm font-mono inline-block min-w-full w-max">
+                        {message.content}
+                      </pre>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -198,8 +212,8 @@ export function IterationView({ iteration }: IterationViewProps) {
               </div>
             </AccordionTrigger>
             <AccordionContent>
-              <div className="p-4 bg-green-50 dark:bg-green-950/20 rounded-md border border-green-200 dark:border-green-800">
-                <pre className="whitespace-pre-wrap break-words text-sm">
+              <div className="p-4 bg-green-50 dark:bg-green-950/20 rounded-md border border-green-200 dark:border-green-800 overflow-x-auto max-w-full" style={{ overflowX: 'auto' }}>
+                <pre className="whitespace-pre text-sm font-mono inline-block min-w-full w-max">
                   {typeof iteration.final_answer === 'string'
                     ? iteration.final_answer
                     : JSON.stringify(iteration.final_answer, null, 2)}

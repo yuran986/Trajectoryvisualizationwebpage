@@ -3,10 +3,7 @@ import { FileUpload } from './components/FileUpload';
 import { TrajectoryTimeline } from './components/TrajectoryTimeline';
 import { MetadataView } from './components/MetadataView';
 import { Card } from './components/ui/card';
-import { Badge } from './components/ui/badge';
-import { ScrollArea } from './components/ui/scroll-area';
-import { Separator } from './components/ui/separator';
-import { Brain, AlertCircle, FileCode2 } from 'lucide-react';
+import { AlertCircle, ChevronDown, ChevronRight, FileCode2 } from 'lucide-react';
 
 interface TrajectoryFile {
   id: string;
@@ -18,6 +15,7 @@ interface TrajectoryFile {
 export default function App() {
   const [loadedFiles, setLoadedFiles] = useState<TrajectoryFile[]>([]);
   const [selectedFile, setSelectedFile] = useState<TrajectoryFile | null>(null);
+  const [showSystemPrompt, setShowSystemPrompt] = useState(false);
 
   const handleFilesLoaded = (files: TrajectoryFile[]) => {
     setLoadedFiles(files);
@@ -37,6 +35,13 @@ export default function App() {
 
   const iterations = selectedFile?.data.filter((item) => item.type === 'iteration') || [];
   const metadata = selectedFile?.data.find((item) => item.type === 'metadata') || null;
+  const trajectoryQuery =
+    iterations[0]?.result?.context ||
+    iterations[0]?.code_blocks?.[0]?.result?.locals?.context ||
+    '';
+  const systemPrompt =
+    iterations[0]?.prompt?.find((message: { role: string; content: string }) => message.role === 'system')
+      ?.content || '';
 
   return (
     <div className="min-h-screen bg-gray-950">
@@ -78,15 +83,13 @@ export default function App() {
             {selectedFile ? (
               <div className="space-y-4">
                 {/* Metadata */}
-                <MetadataView metadata={metadata} />
+                <MetadataView metadata={metadata} query={trajectoryQuery} />
 
                 {/* Trajectory Timeline */}
                 {iterations.length > 0 ? (
-                  <ScrollArea className="h-[calc(100vh-180px)]">
-                    <div className="pr-4">
-                      <TrajectoryTimeline iterations={iterations} />
-                    </div>
-                  </ScrollArea>
+                  <div className="h-[calc(100vh-180px)] overflow-y-auto pr-4">
+                    <TrajectoryTimeline iterations={iterations} />
+                  </div>
                 ) : (
                   <Card className="p-8 bg-gray-900 border-gray-700">
                     <div className="flex flex-col items-center justify-center gap-3 text-center text-gray-400">
@@ -119,6 +122,32 @@ export default function App() {
           </div>
         </div>
       </div>
+
+      {selectedFile && systemPrompt && (
+        <div className="fixed bottom-4 left-4 z-20 w-[min(420px,calc(100vw-2rem))]">
+          <Card className="bg-gray-900/95 border-gray-700 backdrop-blur-sm p-3">
+            <button
+              type="button"
+              className="w-full flex items-center justify-between text-left text-gray-200"
+              onClick={() => setShowSystemPrompt((prev) => !prev)}
+            >
+              <span className="text-sm font-mono">System Prompt</span>
+              {showSystemPrompt ? (
+                <ChevronDown className="size-4 text-gray-400" />
+              ) : (
+                <ChevronRight className="size-4 text-gray-400" />
+              )}
+            </button>
+            {showSystemPrompt && (
+              <div className="mt-3 max-h-72 overflow-auto rounded-md border border-gray-800 bg-gray-950 p-3">
+                <pre className="m-0 text-xs text-gray-300 whitespace-pre-wrap">
+                  {systemPrompt}
+                </pre>
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
