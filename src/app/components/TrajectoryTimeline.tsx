@@ -15,6 +15,7 @@ interface CodeBlock {
     locals: Record<string, any>;
     execution_time: number;
     rlm_calls: any[];
+    action_events?: Record<string, any>[];
   };
 }
 
@@ -128,6 +129,31 @@ function toActionFrameRecord(source: Record<string, any>, timestamp: string): Ar
   };
 }
 
+function extractActionFrameItemsFromEvents(
+  actionEvents: Record<string, any>[] | undefined,
+  timestamp: string
+): ActionFrameItem[] {
+  if (!Array.isArray(actionEvents) || actionEvents.length === 0) {
+    return [];
+  }
+
+  return actionEvents
+    .map((event, index) => {
+      const record = toActionFrameRecord(event, timestamp);
+      if (!record) {
+        return null;
+      }
+
+      const step = typeof record.step === 'number' ? record.step : index;
+      return {
+        id: `event-${step}-${index}`,
+        varName: `action_events[${index}]`,
+        record,
+      };
+    })
+    .filter((item): item is ActionFrameItem => item !== null);
+}
+
 function extractActionRecordFromStdout(stdout: string, timestamp: string): ArgAgiFrameRecord | null {
   if (!stdout || (!stdout.includes("'executed_action'") && !stdout.includes("'action'"))) {
     return null;
@@ -204,6 +230,26 @@ function extractFrameAssignmentTargets(code?: string): Set<string> {
   return names;
 }
 
+function extractActionResultAssignmentTargets(code?: string): Set<string> {
+  const names = new Set<string>();
+  if (!code) {
+    return names;
+  }
+
+  const regex =
+    /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*make_action\([\s\S]*?\)\s*$/;
+
+  code.split('\n').forEach((line) => {
+    const match = line.match(regex);
+    if (!match) {
+      return;
+    }
+    names.add(match[1]);
+  });
+
+  return names;
+}
+
 function formatSeconds(value: unknown, digits = 2): string | null {
   if (typeof value !== 'number' || !Number.isFinite(value)) {
     return null;
@@ -256,12 +302,12 @@ function extractActionCallFromCode(code?: string): { action: string; x?: number;
 
 function findBestFrameInLocals(
   locals: Record<string, any>,
-  assignedLocals: Set<string>
+  candidateNames: Set<string>
 ): unknown | null {
   const preferredNames = ['cf', 'frame', 'current_frame', 'obs', 'observation'];
 
   for (const name of preferredNames) {
-    if (!assignedLocals.has(name)) {
+    if (!candidateNames.has(name)) {
       continue;
     }
     const value = asObject(locals[name]);
@@ -274,7 +320,7 @@ function findBestFrameInLocals(
     }
   }
 
-  for (const name of assignedLocals) {
+  for (const name of candidateNames) {
     const value = asObject(locals[name]);
     if (!value) {
       continue;
@@ -308,21 +354,31 @@ function findBestRawFrameInLocals(
 function extractActionRecordFromCodeAndLocals(
   code: string | undefined,
   locals: Record<string, any>,
-  assignedLocals: Set<string>,
   stdout: string | undefined,
   timestamp: string
-): ArgAgiFrameRecord | null {
+): ActionFrameItem | null {
   const call = extractActionCallFromCode(code);
   if (!call) {
     return null;
   }
 
+  const resultAssignmentTargets = extractActionResultAssignmentTargets(code);
   const frameAssignmentTargets = extractFrameAssignmentTargets(code);
+
+  let varName = 'code.make_action';
   const frame =
-    findBestFrameInLocals(locals, assignedLocals) ??
+    (resultAssignmentTargets.size > 0
+      ? findBestFrameInLocals(locals, resultAssignmentTargets)
+      : null) ??
     findBestRawFrameInLocals(locals, frameAssignmentTargets);
   if (frame === null || frame === undefined) {
     return null;
+  }
+
+  if (resultAssignmentTargets.size > 0) {
+    varName = Array.from(resultAssignmentTargets)[0];
+  } else if (frameAssignmentTargets.size > 0) {
+    varName = Array.from(frameAssignmentTargets)[0];
   }
 
   const guessedState =
@@ -337,27 +393,37 @@ function extractActionRecordFromCodeAndLocals(
     null;
 
   return {
-    type: 'arg_agi_frame',
-    timestamp,
-    step: extractLastRendererStep(stdout) ?? 0,
-    state: guessedState as string | null,
-    levels_completed:
-      typeof guessedLevels === 'number' ? guessedLevels : guessedLevels === null ? null : Number(guessedLevels) || null,
-    action: call.action,
-    action_xy:
-      call.action === 'ACTION6' && call.x !== undefined && call.y !== undefined
-        ? { x: call.x, y: call.y }
-        : null,
-    frame,
+    id: `code-call-${extractLastRendererStep(stdout) ?? 0}-${call.action ?? 'UNKNOWN_ACTION'}`,
+    varName,
+    record: {
+      type: 'arg_agi_frame',
+      timestamp,
+      step: extractLastRendererStep(stdout) ?? 0,
+      state: guessedState as string | null,
+      levels_completed:
+        typeof guessedLevels === 'number' ? guessedLevels : guessedLevels === null ? null : Number(guessedLevels) || null,
+      action: call.action,
+      action_xy:
+        call.action === 'ACTION6' && call.x !== undefined && call.y !== undefined
+          ? { x: call.x, y: call.y }
+          : null,
+      frame,
+    },
   };
 }
 
 function extractActionFrameItems(
+  actionEvents: Record<string, any>[] | undefined,
   locals: Record<string, any> | undefined,
   timestamp: string,
   code?: string,
   stdout?: string
 ): ActionFrameItem[] {
+  const eventItems = extractActionFrameItemsFromEvents(actionEvents, timestamp);
+  if (eventItems.length > 0) {
+    return eventItems;
+  }
+
   if (!locals) {
     const fallbackRecord =
       code && code.includes('print(make_action(') && stdout
@@ -370,9 +436,10 @@ function extractActionFrameItems(
 
   const items: ActionFrameItem[] = [];
   const assignedLocals = extractAssignedLocalNames(code);
+  const resultAssignmentTargets = extractActionResultAssignmentTargets(code);
 
   Object.entries(locals).forEach(([name, rawValue]) => {
-    if (!assignedLocals.has(name)) {
+    if (!resultAssignmentTargets.has(name)) {
       return;
     }
 
@@ -412,19 +479,9 @@ function extractActionFrameItems(
   }
 
   if (items.length === 0 && code && code.includes('make_action(')) {
-    const fallbackRecord = extractActionRecordFromCodeAndLocals(
-      code,
-      locals,
-      assignedLocals,
-      stdout,
-      timestamp
-    );
-    if (fallbackRecord) {
-      items.push({
-        id: `code-call-${fallbackRecord.step}-${fallbackRecord.action ?? 'UNKNOWN_ACTION'}`,
-        varName: 'code.make_action',
-        record: fallbackRecord,
-      });
+    const fallbackItem = extractActionRecordFromCodeAndLocals(code, locals, stdout, timestamp);
+    if (fallbackItem) {
+      items.push(fallbackItem);
     }
   }
 
@@ -554,6 +611,7 @@ const IterationCard = ({ iteration, index }: { iteration: IterationData; index: 
 
             {iteration.code_blocks?.map((block, blockIndex) => {
               const actionItems = extractActionFrameItems(
+                block.result?.action_events,
                 block.result?.locals,
                 iteration.timestamp,
                 block.code,
