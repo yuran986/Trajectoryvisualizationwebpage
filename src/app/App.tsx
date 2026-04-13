@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { FileUpload } from './components/FileUpload';
 import { TrajectoryTimeline } from './components/TrajectoryTimeline';
 import { MetadataView } from './components/MetadataView';
 import { Card } from './components/ui/card';
 import { AlertCircle, ChevronDown, ChevronRight, FileCode2 } from 'lucide-react';
+import { ArgAgiFrameRecord, ArgAgiFrameViewer } from './components/ArgAgiFrameViewer';
 
 interface TrajectoryFile {
   id: string;
@@ -12,14 +13,72 @@ interface TrajectoryFile {
   uploadedAt: Date;
 }
 
+type LiveStatus = 'idle' | 'waiting' | 'ok' | 'error';
+
+const LIVE_FEED_URL = '/@fs/home/users/yz1051/rlm/arg-agi/log_frame/arg_agi_live_latest.json';
+const LIVE_POLL_MS = 1000;
+
 export default function App() {
   const [loadedFiles, setLoadedFiles] = useState<TrajectoryFile[]>([]);
   const [selectedFile, setSelectedFile] = useState<TrajectoryFile | null>(null);
   const [showSystemPrompt, setShowSystemPrompt] = useState(false);
 
+  const [liveRecord, setLiveRecord] = useState<ArgAgiFrameRecord | null>(null);
+  const [liveStatus, setLiveStatus] = useState<LiveStatus>('idle');
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const pollLiveFeed = async () => {
+      try {
+        const response = await fetch(`${LIVE_FEED_URL}?t=${Date.now()}`, {
+          cache: 'no-store',
+        });
+
+        if (response.status === 404) {
+          if (!cancelled) {
+            setLiveStatus('waiting');
+          }
+          return;
+        }
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const payload = await response.json();
+        const record = payload?.type === 'arg_agi_frame' ? payload : payload?.record;
+        if (!cancelled && record?.type === 'arg_agi_frame') {
+          setLiveRecord(record as ArgAgiFrameRecord);
+          setLiveStatus('ok');
+        }
+      } catch {
+        if (!cancelled) {
+          setLiveStatus('error');
+        }
+      }
+    };
+
+    pollLiveFeed();
+    const timer = window.setInterval(pollLiveFeed, LIVE_POLL_MS);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  const liveStatusBadge =
+    liveStatus === 'ok'
+      ? 'live'
+      : liveStatus === 'waiting'
+        ? 'waiting'
+        : liveStatus === 'error'
+          ? 'error'
+          : 'idle';
+
   const handleFilesLoaded = (files: TrajectoryFile[]) => {
     setLoadedFiles(files);
-    // Auto-select the first file if none selected
     if (!selectedFile && files.length > 0) {
       setSelectedFile(files[files.length - 1]);
     }
@@ -35,17 +94,24 @@ export default function App() {
 
   const iterations = selectedFile?.data.filter((item) => item.type === 'iteration') || [];
   const metadata = selectedFile?.data.find((item) => item.type === 'metadata') || null;
+
+  const argAgiFrames = useMemo(
+    () => (selectedFile?.data.filter((item) => item.type === 'arg_agi_frame') as ArgAgiFrameRecord[]) || [],
+    [selectedFile]
+  );
+  const isArgAgiFrameFile = argAgiFrames.length > 0;
+
   const trajectoryQuery =
     iterations[0]?.result?.context ||
     iterations[0]?.code_blocks?.[0]?.result?.locals?.context ||
     '';
+
   const systemPrompt =
     iterations[0]?.prompt?.find((message: { role: string; content: string }) => message.role === 'system')
       ?.content || '';
 
   return (
     <div className="min-h-screen bg-gray-950">
-      {/* Header */}
       <header className="border-b border-gray-800 bg-gray-900 sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center gap-3">
@@ -56,18 +122,14 @@ export default function App() {
               <h1 className="text-xl text-gray-100 flex items-center gap-2">
                 <span className="font-mono">rlm_execution.log</span>
               </h1>
-              <p className="text-sm text-gray-400">
-                Recursive Language Model Trajectory
-              </p>
+              <p className="text-sm text-gray-400">Recursive Language Model Trajectory</p>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
       <div className="container mx-auto px-4 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Sidebar - File Upload */}
           <div className="lg:col-span-1">
             <FileUpload
               onFilesLoaded={handleFilesLoaded}
@@ -78,30 +140,43 @@ export default function App() {
             />
           </div>
 
-          {/* Main Content Area - Trajectory */}
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-2 space-y-4">
+            <ArgAgiFrameViewer
+              title="ARG-AGI Live Monitor"
+              compact
+              records={liveRecord ? [liveRecord] : []}
+              statusBadge={liveStatusBadge}
+              emptyMessage="Live feed not detected yet. Start arg-agi runner to publish rlm/arg-agi/log_frame/arg_agi_live_latest.json."
+            />
+
             {selectedFile ? (
               <div className="space-y-4">
-                {/* Metadata */}
-                <MetadataView metadata={metadata} query={trajectoryQuery} />
-
-                {/* Trajectory Timeline */}
-                {iterations.length > 0 ? (
-                  <div className="h-[calc(100vh-180px)] overflow-y-auto pr-4">
-                    <TrajectoryTimeline iterations={iterations} />
-                  </div>
+                {isArgAgiFrameFile ? (
+                  <ArgAgiFrameViewer
+                    title={`ARG-AGI Offline Playback: ${selectedFile.name}`}
+                    records={argAgiFrames}
+                    emptyMessage="This file does not contain arg_agi_frame records."
+                  />
                 ) : (
-                  <Card className="p-8 bg-gray-900 border-gray-700">
-                    <div className="flex flex-col items-center justify-center gap-3 text-center text-gray-400">
-                      <AlertCircle className="size-12" />
-                      <div>
-                        <p>No iterations found in this file</p>
-                        <p className="text-sm">
-                          Make sure the JSONL file contains iteration data
-                        </p>
+                  <>
+                    <MetadataView metadata={metadata} query={trajectoryQuery} />
+
+                    {iterations.length > 0 ? (
+                      <div className="h-[calc(100vh-260px)] overflow-y-auto pr-4">
+                        <TrajectoryTimeline iterations={iterations} />
                       </div>
-                    </div>
-                  </Card>
+                    ) : (
+                      <Card className="p-8 bg-gray-900 border-gray-700">
+                        <div className="flex flex-col items-center justify-center gap-3 text-center text-gray-400">
+                          <AlertCircle className="size-12" />
+                          <div>
+                            <p>No iterations found in this file</p>
+                            <p className="text-sm">Make sure the JSONL file contains iteration data</p>
+                          </div>
+                        </div>
+                      </Card>
+                    )}
+                  </>
                 )}
               </div>
             ) : (
@@ -112,9 +187,7 @@ export default function App() {
                   </div>
                   <div>
                     <h3 className="mb-2 text-gray-300">No Trajectory Selected</h3>
-                    <p className="text-sm">
-                      Upload JSONL files to start visualizing RLM trajectories
-                    </p>
+                    <p className="text-sm">Upload JSONL files to start visualizing RLM trajectories</p>
                   </div>
                 </div>
               </Card>
@@ -123,7 +196,7 @@ export default function App() {
         </div>
       </div>
 
-      {selectedFile && systemPrompt && (
+      {selectedFile && !isArgAgiFrameFile && systemPrompt && (
         <div className="fixed bottom-4 left-4 z-20 w-[min(420px,calc(100vw-2rem))]">
           <Card className="bg-gray-900/95 border-gray-700 backdrop-blur-sm p-3">
             <button
@@ -140,9 +213,7 @@ export default function App() {
             </button>
             {showSystemPrompt && (
               <div className="mt-3 max-h-72 overflow-auto rounded-md border border-gray-800 bg-gray-950 p-3">
-                <pre className="m-0 text-xs text-gray-300 whitespace-pre-wrap">
-                  {systemPrompt}
-                </pre>
+                <pre className="m-0 text-xs text-gray-300 whitespace-pre-wrap">{systemPrompt}</pre>
               </div>
             )}
           </Card>

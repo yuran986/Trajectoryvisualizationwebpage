@@ -28,9 +28,9 @@ export function FileUpload({
   onRemoveFile,
 }: FileUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
-  const projectJsonlFiles = import.meta.glob('../../../jsonl/*.jsonl', {
+  const projectJsonlFileUrls = import.meta.glob('../../../jsonl/*.jsonl', {
     eager: true,
-    query: '?raw',
+    query: '?url',
     import: 'default',
   }) as Record<string, string>;
 
@@ -88,16 +88,22 @@ export function FileUpload({
     }
   };
 
-  const handleLoadProjectJsonl = () => {
-    const entries = Object.entries(projectJsonlFiles);
+  const handleLoadProjectJsonl = async () => {
+    const entries = Object.entries(projectJsonlFileUrls);
     if (entries.length === 0) {
       alert('No .jsonl files found in Trajectoryvisualizationwebpage/jsonl.');
       return;
     }
 
     const newFiles: TrajectoryFile[] = [];
-    entries.forEach(([path, text], index) => {
+    for (let index = 0; index < entries.length; index++) {
+      const [path, fileUrl] = entries[index];
       try {
+        const response = await fetch(fileUrl, { cache: 'no-store' });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        const text = await response.text();
         const lines = text.split('\n').filter(line => line.trim());
         const parsedData = lines.map(line => JSON.parse(line));
         const name = path.split('/').pop() || `trajectory_${index + 1}.jsonl`;
@@ -111,7 +117,7 @@ export function FileUpload({
       } catch (error) {
         console.error(`Error parsing ${path}:`, error);
       }
-    });
+    }
 
     if (newFiles.length > 0) {
       onFilesLoaded([...loadedFiles, ...newFiles]);
