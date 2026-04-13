@@ -18,6 +18,31 @@ type LiveStatus = 'idle' | 'waiting' | 'ok' | 'error';
 const LIVE_FEED_URL = '/@fs/home/users/yz1051/rlm/arg-agi/log_frame/arg_agi_live_latest.json';
 const LIVE_POLL_MS = 1000;
 
+function parseTimestampFromFileName(name: string): number | null {
+  const match = name.match(/(\d{4}-\d{2}-\d{2})_(\d{2})-(\d{2})-(\d{2})/);
+  if (!match) {
+    return null;
+  }
+  const [, day, hh, mm, ss] = match;
+  const iso = `${day}T${hh}:${mm}:${ss}`;
+  const parsed = Date.parse(iso);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function firstTimestampFromData(data: any[]): number | null {
+  for (const item of data) {
+    const timestamp = item?.timestamp;
+    if (typeof timestamp !== 'string') {
+      continue;
+    }
+    const parsed = Date.parse(timestamp);
+    if (!Number.isNaN(parsed)) {
+      return parsed;
+    }
+  }
+  return null;
+}
+
 export default function App() {
   const [loadedFiles, setLoadedFiles] = useState<TrajectoryFile[]>([]);
   const [selectedFile, setSelectedFile] = useState<TrajectoryFile | null>(null);
@@ -100,6 +125,47 @@ export default function App() {
     [selectedFile]
   );
   const isArgAgiFrameFile = argAgiFrames.length > 0;
+  const pairedArgAgiFrames = useMemo(() => {
+    if (!selectedFile || isArgAgiFrameFile) {
+      return [] as ArgAgiFrameRecord[];
+    }
+
+    const candidates = loadedFiles
+      .filter((file) => file.id !== selectedFile.id)
+      .map((file) => ({
+        file,
+        frames: file.data.filter((item) => item.type === 'arg_agi_frame') as ArgAgiFrameRecord[],
+      }))
+      .filter((entry) => entry.frames.length > 0);
+
+    if (candidates.length === 0) {
+      return [] as ArgAgiFrameRecord[];
+    }
+
+    const selectedTs =
+      parseTimestampFromFileName(selectedFile.name) ?? firstTimestampFromData(selectedFile.data);
+
+    if (selectedTs === null) {
+      return candidates[0].frames;
+    }
+
+    let bestFrames = candidates[0].frames;
+    let bestDistance = Number.POSITIVE_INFINITY;
+
+    candidates.forEach(({ file, frames }) => {
+      const frameTs = parseTimestampFromFileName(file.name) ?? firstTimestampFromData(file.data);
+      if (frameTs === null) {
+        return;
+      }
+      const distance = Math.abs(frameTs - selectedTs);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestFrames = frames;
+      }
+    });
+
+    return bestFrames;
+  }, [loadedFiles, selectedFile, isArgAgiFrameFile]);
 
   const trajectoryQuery =
     iterations[0]?.result?.context ||
@@ -163,7 +229,7 @@ export default function App() {
 
                     {iterations.length > 0 ? (
                       <div className="h-[calc(100vh-260px)] overflow-y-auto pr-4">
-                        <TrajectoryTimeline iterations={iterations} />
+                        <TrajectoryTimeline iterations={iterations} argAgiFrames={pairedArgAgiFrames} />
                       </div>
                     ) : (
                       <Card className="p-8 bg-gray-900 border-gray-700">

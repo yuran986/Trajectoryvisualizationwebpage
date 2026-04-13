@@ -34,6 +34,7 @@ interface IterationData {
 
 interface TrajectoryTimelineProps {
   iterations: IterationData[];
+  argAgiFrames?: ArgAgiFrameRecord[];
 }
 
 interface ActionFrameItem {
@@ -258,16 +259,21 @@ function formatSeconds(value: unknown, digits = 2): string | null {
 }
 
 function extractLastRendererStep(stdout?: string): number | null {
+  const steps = extractRendererSteps(stdout);
+  return steps.length > 0 ? steps[steps.length - 1] : null;
+}
+
+function extractRendererSteps(stdout?: string): number[] {
   if (!stdout) {
-    return null;
+    return [];
   }
   const regex = /\[renderer\]\s*step=(\d+)/g;
+  const steps: number[] = [];
   let match: RegExpExecArray | null = null;
-  let last: RegExpExecArray | null = null;
   while ((match = regex.exec(stdout)) !== null) {
-    last = match;
+    steps.push(Number(match[1]));
   }
-  return last ? Number(last[1]) : null;
+  return steps;
 }
 
 function extractActionCallFromCode(code?: string): { action: string; x?: number; y?: number } | null {
@@ -415,6 +421,7 @@ function extractActionRecordFromCodeAndLocals(
 function extractActionFrameItems(
   actionEvents: Record<string, any>[] | undefined,
   locals: Record<string, any> | undefined,
+  argAgiFrames: ArgAgiFrameRecord[] | undefined,
   timestamp: string,
   code?: string,
   stdout?: string
@@ -422,6 +429,21 @@ function extractActionFrameItems(
   const eventItems = extractActionFrameItemsFromEvents(actionEvents, timestamp);
   if (eventItems.length > 0) {
     return eventItems;
+  }
+
+  const rendererSteps = extractRendererSteps(stdout);
+  if (rendererSteps.length > 0 && Array.isArray(argAgiFrames) && argAgiFrames.length > 0) {
+    const stepSet = new Set(rendererSteps);
+    const externalItems = argAgiFrames
+      .filter((record) => typeof record.step === 'number' && stepSet.has(record.step))
+      .map((record) => ({
+        id: `frame-log-${record.step}`,
+        varName: `frame_log[step ${record.step}]`,
+        record,
+      }));
+    if (externalItems.length > 0) {
+      return externalItems;
+    }
   }
 
   if (!locals) {
@@ -488,7 +510,15 @@ function extractActionFrameItems(
   return items;
 }
 
-const IterationCard = ({ iteration, index }: { iteration: IterationData; index: number }) => {
+const IterationCard = ({
+  iteration,
+  index,
+  argAgiFrames,
+}: {
+  iteration: IterationData;
+  index: number;
+  argAgiFrames: ArgAgiFrameRecord[];
+}) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const [isResponseExpanded, setIsResponseExpanded] = useState(false);
   const [expandedCodeBlocks, setExpandedCodeBlocks] = useState<Set<number>>(new Set());
@@ -613,6 +643,7 @@ const IterationCard = ({ iteration, index }: { iteration: IterationData; index: 
               const actionItems = extractActionFrameItems(
                 block.result?.action_events,
                 block.result?.locals,
+                argAgiFrames,
                 iteration.timestamp,
                 block.code,
                 block.result?.stdout
@@ -787,7 +818,7 @@ const IterationCard = ({ iteration, index }: { iteration: IterationData; index: 
   );
 };
 
-export function TrajectoryTimeline({ iterations }: TrajectoryTimelineProps) {
+export function TrajectoryTimeline({ iterations, argAgiFrames = [] }: TrajectoryTimelineProps) {
   const groups = (() => {
     const grouped: Array<{
       key: string;
@@ -833,6 +864,7 @@ export function TrajectoryTimeline({ iterations }: TrajectoryTimelineProps) {
               key={`${group.key}-${iteration.iteration}-${itemIdx}`}
               iteration={iteration}
               index={groupIdx === 0 ? itemIdx : itemIdx + 1}
+              argAgiFrames={argAgiFrames}
             />
           ))}
         </div>
