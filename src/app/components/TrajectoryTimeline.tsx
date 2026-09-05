@@ -276,6 +276,35 @@ function extractRendererSteps(stdout?: string): number[] {
   return steps;
 }
 
+function countActionCallsInCode(code?: string): number {
+  if (!code) {
+    return 0;
+  }
+
+  const executable = code
+    .split('\n')
+    .filter((line) => !line.trim().startsWith('#'))
+    .join('\n');
+
+  return executable.match(/\bmake_action\s*\(/g)?.length ?? 0;
+}
+
+function countIterationActions(iteration: IterationData): number {
+  return (iteration.code_blocks ?? []).reduce((total, block) => {
+    const actionEvents = block.result?.action_events;
+    if (Array.isArray(actionEvents) && actionEvents.length > 0) {
+      return total + actionEvents.length;
+    }
+
+    const rendererSteps = extractRendererSteps(block.result?.stdout);
+    if (rendererSteps.length > 0) {
+      return total + rendererSteps.length;
+    }
+
+    return total + countActionCallsInCode(block.code);
+  }, 0);
+}
+
 function extractActionCallFromCode(code?: string): { action: string; x?: number; y?: number } | null {
   if (!code || !code.includes('make_action(')) {
     return null;
@@ -519,7 +548,7 @@ const IterationCard = ({
   index: number;
   argAgiFrames: ArgAgiFrameRecord[];
 }) => {
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [isResponseExpanded, setIsResponseExpanded] = useState(false);
   const [expandedCodeBlocks, setExpandedCodeBlocks] = useState<Set<number>>(new Set());
   const [expandedOutputs, setExpandedOutputs] = useState<Set<number>>(new Set());
@@ -559,6 +588,7 @@ const IterationCard = ({
     stripReplCodeBlocks(iteration.response || '')
   ).trim();
   const iterationDurationLabel = formatSeconds(iteration.iteration_time, 2) ?? 'N/A';
+  const actionCount = countIterationActions(iteration);
   const hasVisibleResponse = normalizedResponse.length > 0;
   const displayedResponse = isResponseExpanded
     ? normalizedResponse
@@ -596,6 +626,9 @@ const IterationCard = ({
                     step {iteration.completion_iteration}
                   </Badge>
                 )}
+                <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/50 border font-mono">
+                  {actionCount} {actionCount === 1 ? 'action' : 'actions'}
+                </Badge>
                 <DepthBadge depth={0} />
               </div>
               <span className="text-blue-400 font-mono">RLM Call</span>

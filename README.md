@@ -15,7 +15,8 @@ An interactive web interface for inspecting Recursive Language Model (RLM) execu
 - **RLM trace inspection:** browse run metadata, queries, system prompts, model responses, REPL code, stdout/stderr, nested model calls, and execution time.
 - **ARC-AGI-3 frame playback:** render color-grid observations with step, action, coordinates, game state, and completed-level metadata.
 - **Action-to-frame alignment:** associate RLM iterations and action events with the corresponding environment frames.
-- **Long-trajectory navigation:** group records by completion and iteration, collapse verbose sections, and move through frame sequences.
+- **Compact iteration summaries:** start every iteration collapsed while retaining its completion step, executed-action count, status, and duration in the header.
+- **Long-trajectory navigation:** group records by completion and iteration, expand details on demand, and move through frame sequences.
 - **Multiple input modes:** drag and drop local JSONL files, load JSONLs bundled with the project, or monitor a locally generated live snapshot.
 - **Local file handling:** uploaded trajectories are parsed in the browser and are not sent to a backend by this application.
 
