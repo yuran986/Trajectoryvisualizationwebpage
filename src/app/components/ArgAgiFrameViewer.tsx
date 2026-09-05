@@ -25,6 +25,7 @@ interface ArgAgiFrameViewerProps {
   records: ArgAgiFrameRecord[];
   emptyMessage?: string;
   compact?: boolean;
+  cellSize?: number;
   statusBadge?: string;
 }
 
@@ -72,14 +73,13 @@ function extract2DGrid(rawFrame: unknown): number[][] | null {
   return null;
 }
 
-function drawGrid(canvas: HTMLCanvasElement, grid: number[][], compact: boolean): void {
+function drawGrid(canvas: HTMLCanvasElement, grid: number[][], cellSize: number): void {
   const rows = grid.length;
   const cols = grid[0]?.length ?? 0;
   if (!rows || !cols) {
     return;
   }
 
-  const cellSize = compact ? 6 : 8;
   canvas.width = cols * cellSize;
   canvas.height = rows * cellSize;
 
@@ -109,6 +109,7 @@ export function ArgAgiFrameViewer({
   records,
   emptyMessage = DEFAULT_EMPTY,
   compact = false,
+  cellSize,
   statusBadge,
 }: ArgAgiFrameViewerProps) {
   const [index, setIndex] = useState(0);
@@ -124,13 +125,14 @@ export function ArgAgiFrameViewer({
 
   const current = records[index] ?? null;
   const grid = useMemo(() => extract2DGrid(current?.frame), [current]);
+  const resolvedCellSize = cellSize ?? (compact ? 6 : 8);
 
   useEffect(() => {
     if (!canvasRef.current || !grid) {
       return;
     }
-    drawGrid(canvasRef.current, grid, compact);
-  }, [grid, compact]);
+    drawGrid(canvasRef.current, grid, resolvedCellSize);
+  }, [grid, resolvedCellSize]);
 
   return (
     <Card className="bg-gray-900 border-gray-700 p-4 space-y-3">

@@ -221,6 +221,7 @@ export default function App() {
                   <ArgAgiFrameViewer
                     title={`ARC-AGI-3 Offline Playback: ${selectedFile.name}`}
                     records={argAgiFrames}
+                    cellSize={4}
                     emptyMessage="This file does not contain arg_agi_frame records."
                   />
                 ) : (
