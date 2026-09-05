@@ -5,8 +5,10 @@
 一个用于联合检查 Recursive Language Model（RLM）执行轨迹和 ARC-AGI-3 环境画面的交互式网页。它将模型回复、REPL 执行、动作、视觉状态和耗时对齐在同一界面中，用于诊断长程 Agent 行为。
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/yuran986/arc-agi-3-agent-post-training/main/fig/rlm-trajectory-viewer.png" alt="RLM 轨迹可视化工具，展示 ARC-AGI-3 画面及其执行轨迹" width="100%">
+  <img src="docs/images/rlm-trajectory-overview.png" alt="RLM 轨迹可视化工具，展示 ARC-AGI-3 画面及其执行轨迹" width="100%">
 </p>
+
+<p align="center"><em>工作区总览：上传并选择运行记录、监控最新环境画面、检查元数据，以及浏览按 completion 分组的 RLM iteration。</em></p>
 
 ## 功能
 
@@ -16,6 +18,16 @@
 - **长轨迹导航：** 按 completion 和 iteration 组织记录，折叠冗长内容并逐帧浏览。
 - **多种输入方式：** 拖放本地 JSONL、读取项目内置 JSONL，或监控本地实时快照。
 - **本地文件处理：** 上传的轨迹直接在浏览器中解析，本应用不会将其发送到后端。
+
+## 动作级检查
+
+<p align="center">
+  <img src="docs/images/action-frame-inspection.png" alt="Action Frames 面板，将 RLM 代码与 ARC-AGI-3 动作后画面对齐" width="100%">
+</p>
+
+<p align="center"><em>展开一轮 iteration，从模型回复、REPL 代码一直追踪到 ACTION6 执行后的画面，同时展示 step、坐标、状态和关卡进度。</em></p>
+
+对于每个 code block，Viewer 会尽可能恢复全部动作后画面：优先读取结构化 `action_events`，其次根据 step 匹配配套的 ARC frame 日志，最后兼容旧轨迹，从 REPL locals 或 stdout 中提取动作结果。这样无需阅读原始嵌套数组，也能直观看到重复动作和没有改变环境的 transition。
 
 ## 快速开始
 

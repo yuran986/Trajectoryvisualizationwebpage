@@ -5,8 +5,10 @@
 An interactive web interface for inspecting Recursive Language Model (RLM) execution traces alongside ARC-AGI-3 environment frames. It was developed to diagnose long-horizon agent behavior by aligning model responses, REPL execution, actions, visual states, and timing in one place.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/yuran986/arc-agi-3-agent-post-training/main/fig/rlm-trajectory-viewer.png" alt="RLM Trajectory Viewer displaying an ARC-AGI-3 frame and its execution trace" width="100%">
+  <img src="docs/images/rlm-trajectory-overview.png" alt="RLM Trajectory Viewer displaying an ARC-AGI-3 frame and its execution trace" width="100%">
 </p>
+
+<p align="center"><em>Workspace overview: upload and select runs, monitor the latest environment frame, inspect metadata, and navigate completion-grouped RLM iterations.</em></p>
 
 ## Features
 
@@ -16,6 +18,16 @@ An interactive web interface for inspecting Recursive Language Model (RLM) execu
 - **Long-trajectory navigation:** group records by completion and iteration, collapse verbose sections, and move through frame sequences.
 - **Multiple input modes:** drag and drop local JSONL files, load JSONLs bundled with the project, or monitor a locally generated live snapshot.
 - **Local file handling:** uploaded trajectories are parsed in the browser and are not sent to a backend by this application.
+
+## Action-level inspection
+
+<p align="center">
+  <img src="docs/images/action-frame-inspection.png" alt="Action Frames panel aligning RLM code with an ARC-AGI-3 post-action frame" width="100%">
+</p>
+
+<p align="center"><em>One iteration expanded from model response to REPL code and the resulting ACTION6 frame, including step, coordinates, state, and level progress.</em></p>
+
+For each code block, the viewer attempts to recover every post-action frame. It prioritizes structured `action_events`, then matches steps from a paired ARC frame log, and finally supports legacy traces by extracting action results from REPL locals or stdout. This makes repeated actions and no-op transitions visible without reading raw nested arrays.
 
 ## Quick start
 
