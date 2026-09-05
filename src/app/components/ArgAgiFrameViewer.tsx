@@ -24,12 +24,11 @@ interface ArgAgiFrameViewerProps {
   title: string;
   records: ArgAgiFrameRecord[];
   emptyMessage?: string;
-  compact?: boolean;
-  cellSize?: number;
   statusBadge?: string;
 }
 
 const DEFAULT_EMPTY = 'No frame records available yet.';
+const FRAME_CELL_SIZE = 5;
 
 const PALETTE: Record<number, string> = {
   0: '#f8fafc',
@@ -108,8 +107,6 @@ export function ArgAgiFrameViewer({
   title,
   records,
   emptyMessage = DEFAULT_EMPTY,
-  compact = false,
-  cellSize,
   statusBadge,
 }: ArgAgiFrameViewerProps) {
   const [index, setIndex] = useState(0);
@@ -125,14 +122,13 @@ export function ArgAgiFrameViewer({
 
   const current = records[index] ?? null;
   const grid = useMemo(() => extract2DGrid(current?.frame), [current]);
-  const resolvedCellSize = cellSize ?? (compact ? 6 : 8);
 
   useEffect(() => {
     if (!canvasRef.current || !grid) {
       return;
     }
-    drawGrid(canvasRef.current, grid, resolvedCellSize);
-  }, [grid, resolvedCellSize]);
+    drawGrid(canvasRef.current, grid, FRAME_CELL_SIZE);
+  }, [grid]);
 
   return (
     <Card className="bg-gray-900 border-gray-700 p-4 space-y-3">
@@ -184,7 +180,7 @@ export function ArgAgiFrameViewer({
 
           {grid ? (
             <div className="overflow-auto rounded-md border border-gray-700 bg-black/40 p-2">
-              <canvas ref={canvasRef} className="block" style={{ imageRendering: 'pixelated' }} />
+              <canvas ref={canvasRef} className="block mx-auto" style={{ imageRendering: 'pixelated' }} />
             </div>
           ) : (
             <div className="rounded-md border border-yellow-500/30 bg-yellow-500/10 p-3 text-xs text-yellow-200">

@@ -756,7 +756,6 @@ const IterationCard = ({
                                 <ArgAgiFrameViewer
                                   title={`${item.varName} -> ${String(actionName)}`}
                                   records={[item.record]}
-                                  compact
                                   statusBadge="post-action"
                                 />
                               )}
