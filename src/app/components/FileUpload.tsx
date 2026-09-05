@@ -173,7 +173,7 @@ export function FileUpload({
               onClick={handleLoadProjectJsonl}
             >
               <FolderOpen className="size-4 mr-2" />
-            
+              Load Project JSONLs
             </Button>
           </div>
         </div>
