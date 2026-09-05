@@ -2,7 +2,7 @@
 
 # RLM 轨迹可视化工具
 
-[面向 ARC-AGI-3 的长程 LLM Agent 后训练](https://github.com/yuran986/arc-agi-3-agent-post-training)的配套分析工具。Viewer 从 RLM 执行日志和 ARC-AGI-3 frame stream 中重建长程 Agent 行为，将 reasoning、代码执行、动作、视觉状态和耗时对齐，用于 trajectory-level 诊断。
+为[面向 ARC-AGI-3 的长程 LLM Agent 后训练](https://github.com/yuran986/arc-agi-3-agent-post-training)开发的交互式分析工具。Viewer 从 RLM 执行日志和 ARC-AGI-3 frame stream 中重建长程 Agent 行为，将 reasoning、代码执行、动作、视觉状态和耗时对齐，用于 trajectory-level 诊断。
 
 ## 概述
 
@@ -123,6 +123,6 @@ Live mode 目前是本地研究集成，而非可移植的服务端 API。如果
 - Live feed 依赖本地配置路径和 Vite 开发服务器。
 - 本工具用于轨迹审计，不负责编辑日志、汇总 benchmark 指标，也不能替代可复现的 evaluation harness。
 
-## 来源与致谢
+## 致谢
 
 本 Viewer 是 ARC-AGI-3 Agent 后训练研究的轨迹分析组件。初始界面使用 [Figma Make](https://www.figma.com/design/cYp0fr79jqgMOx5XeJgYkk/Trajectory-Visualization-Web-Page) 制作原型。第三方声明见 [ATTRIBUTIONS.md](ATTRIBUTIONS.md)。

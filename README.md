@@ -2,7 +2,7 @@
 
 # RLM Trajectory Viewer
 
-Companion analysis artifact for [Long-Horizon LLM Agent Post-Training for ARC-AGI-3](https://github.com/yuran986/arc-agi-3-agent-post-training). The viewer reconstructs long-horizon agent behavior from RLM execution logs and ARC-AGI-3 frame streams, aligning reasoning, code execution, actions, visual state, and timing for trajectory-level diagnosis.
+An interactive analysis tool developed for [Long-Horizon LLM Agent Post-Training for ARC-AGI-3](https://github.com/yuran986/arc-agi-3-agent-post-training). The viewer reconstructs long-horizon agent behavior from RLM execution logs and ARC-AGI-3 frame streams, aligning reasoning, code execution, actions, visual state, and timing for trajectory-level diagnosis.
 
 ## Overview
 
@@ -123,6 +123,6 @@ The snapshot may be an `arg_agi_frame` record directly or an object containing t
 - The live feed depends on a locally configured path and the Vite development server.
 - The tool audits trajectories; it does not edit logs, aggregate benchmark metrics, or replace a reproducible evaluation harness.
 
-## Provenance and acknowledgment
+## Acknowledgments
 
 The viewer was developed as the trajectory-analysis component of the ARC-AGI-3 agent post-training study. The initial interface was prototyped with [Figma Make](https://www.figma.com/design/cYp0fr79jqgMOx5XeJgYkk/Trajectory-Visualization-Web-Page). Third-party notices are recorded in [ATTRIBUTIONS.md](ATTRIBUTIONS.md).
