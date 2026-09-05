@@ -2,110 +2,127 @@
 
 # RLM 轨迹可视化工具
 
-一个用于联合检查 Recursive Language Model（RLM）执行轨迹和 ARC-AGI-3 环境画面的交互式网页。它将模型回复、REPL 执行、动作、视觉状态和耗时对齐在同一界面中，用于诊断长程 Agent 行为。
+[面向 ARC-AGI-3 的长程 LLM Agent 后训练](https://github.com/yuran986/arc-agi-3-agent-post-training)的配套分析工具。Viewer 从 RLM 执行日志和 ARC-AGI-3 frame stream 中重建长程 Agent 行为，将 reasoning、代码执行、动作、视觉状态和耗时对齐，用于 trajectory-level 诊断。
+
+## 概述
+
+Aggregate reward curve 无法区分真实任务学习和利用 shaping signal 的重复动作。本工具使二者可以被直接检查。它同时支持实时环境监控和离线分析，并保留从运行元数据、completion、iteration、code block、action event 到动作后 frame 的完整层级。
 
 <p align="center">
   <img src="docs/images/viewer-demo.gif" alt="RLM 轨迹可视化演示，展示 ARC-AGI-3 离线回放和动作级轨迹检查" width="100%">
 </p>
 
-<p align="center"><em>加载配套轨迹日志、拖动 slider 回放离线画面、切换到对应的 RLM 轨迹，再展开 iteration 检查其中实际执行的动作。</em></p>
+<p align="center"><em>加载配套日志、拖动 slider 查看环境状态、切换到关联的 RLM 轨迹，再展开 iteration 检查其中实际执行的动作。</em></p>
 
-## 功能
+## 支持的分析
 
-- **RLM 轨迹检查：** 查看运行元数据、任务输入、系统提示词、模型回复、REPL 代码、stdout/stderr、嵌套模型调用和执行耗时。
-- **ARC-AGI-3 画面回放：** 渲染颜色网格观测，同时展示 step、动作、坐标、游戏状态和已完成关卡数。
-- **动作与画面对齐：** 将 RLM iteration 和动作事件关联到对应的环境画面。
-- **紧凑 iteration 摘要：** 所有 iteration 默认折叠，并在标题栏保留 completion step、实际动作数、状态和耗时。
-- **长轨迹导航：** 按 completion 和 iteration 组织记录，按需展开细节并逐帧浏览。
-- **多种输入方式：** 拖放本地 JSONL、读取项目内置 JSONL，或监控本地实时快照。
-- **本地文件处理：** 上传的轨迹直接在浏览器中解析，本应用不会将其发送到后端。
+| 分析问题 | Viewer 提供的证据 |
+|---|---|
+| Reward 是否对应真实任务进展？ | 环境状态、`levels_completed`、动作序列与 frame transition |
+| Policy 真正执行了动作，还是只进行了推理？ | 每轮实际动作数和 completion step |
+| 某个 action 改变了什么？ | Action 名称/坐标与动作后 frame 对齐 |
+| 模型是否正确使用 observation？ | 同一 iteration 中的模型回复、REPL 代码、stdout/stderr 与画面变化 |
+| 长 rollout 在哪里失败？ | 按 completion 分组的 timeline、耗时、final answer 与终局状态 |
+| 问题是否来自某一条日志流？ | 根据时间戳配对 RLM 和环境 frame JSONL |
 
-## 离线回放
+## 界面
+
+<details>
+<summary><strong>实时与离线 frame 回放</strong></summary>
 
 <p align="center">
-  <img src="docs/images/offline-playback.png" alt="ARC-AGI-3 实时监控和带时间轴 slider 的离线画面回放" width="100%">
+  <img src="docs/images/offline-playback.png" alt="ARC-AGI-3 实时监控和带时间轴 slider 的离线 frame 回放" width="100%">
 </p>
 
-<p align="center"><em>实时画面与录制画面使用相同的渲染尺寸。Offline 面板通过 slider 查看任意记录 step 对应的状态、动作、坐标和关卡进度。</em></p>
+实时 frame 与录制 frame 使用相同的渲染尺寸。Offline slider 可以查看任意记录 step 对应的状态、动作、坐标和关卡进度。
 
-## 动作级检查
+</details>
+
+<details>
+<summary><strong>Iteration 与动作级检查</strong></summary>
 
 <p align="center">
   <img src="docs/images/action-level-inspection.png" alt="展开的 RLM iteration，展示动作数、Action Frames 和 renderer 输出" width="100%">
 </p>
 
-<p align="center"><em>Iteration 摘要显示实际执行了五步动作；展开后可以查看模型回复、REPL 代码、每个 Action Frame 和 renderer 输出。</em></p>
+所有 iteration 默认折叠，并汇总 completion step、实际动作数、depth、状态与耗时。展开后可查看模型回复、REPL 代码、各个 Action Frame、输出/错误流、递归调用和 final answer。
 
-对于每个 code block，Viewer 会尽可能恢复全部动作后画面：优先读取结构化 `action_events`，其次根据 step 匹配配套的 ARC frame 日志，最后兼容旧轨迹，从 REPL locals 或 stdout 中提取动作结果。这样无需阅读原始嵌套数组，也能直观看到重复动作和没有改变环境的 transition。
+</details>
 
-## 快速开始
+## 安装
 
 ```bash
+git clone https://github.com/yuran986/Trajectoryvisualizationwebpage.git
+cd Trajectoryvisualizationwebpage
 npm install
 npm run dev
 ```
 
-打开 Vite 输出的本地地址。构建生产版本：
+打开 Vite 输出的本地地址。验证 production build：
 
 ```bash
 npm run build
 ```
 
-## 加载轨迹
+## 输入数据
 
-### 上传本地文件
+Viewer 读取 newline-delimited JSON，每行包含一个对象。它识别两条互补的数据流：
 
-点击 **Upload Files**，或将一个或多个 `.jsonl` 文件拖入上传区域。同时加载一份 RLM 日志和对应的 ARC frame 日志后，即可进行同步检查。当存在多份 frame 日志时，Viewer 会根据时间戳匹配最近的一次运行，再将画面与轨迹动作对齐。
-
-### 加载项目 JSONL
-
-将开发用样例放入 `jsonl/`，必要时重启 Vite，然后点击 **Load Project JSONLs**。这些文件通过 `import.meta.glob` 被发现，并会成为构建产物的一部分，因此不应提交私有或体积较大的实验日志，也不应将其打包进公开部署。
-
-## 支持的数据记录
-
-Viewer 针对配套 RLM 与 ARC-AGI-3 集成产生的 JSONL 输出设计，主要识别两类数据流：
-
-| 数据流 | Record 类型 | 重要字段 |
+| 数据流 | Record 类型 | 必需或常用字段 |
 |---|---|---|
 | RLM 执行日志 | `metadata`、`iteration` | 模型/后端设置、prompt、response、`code_blocks`、执行结果、completion/iteration ID |
-| ARC frame 日志 | `arg_agi_frame` | `timestamp`、`step`、`state`、`levels_completed`、`action`、`action_xy`、`frame` |
+| ARC 环境日志 | `arg_agi_frame` | `timestamp`、`step`、`state`、`levels_completed`、`action`、`action_xy`、`frame` |
 
-每行必须是一个有效的 JSON 对象。Frame payload 应包含颜色索引网格，常见形状为 `[1, height, width]`。
+Frame payload 应包含数字颜色索引网格，常见形状为 `[1, height, width]`。解析器兼容多种历史 action-result 布局，以支持早期实验日志。
 
-## 实时监控
+### 加载方式
 
-页面每秒轮询一次最新的 frame JSON 快照，并在 live monitor 中显示。目前该模式服务于本地 ARC-AGI-3 研究环境，尚未封装为可移植的服务端 API。
+- **Upload Files：** 完全在浏览器中解析一个或多个本地 `.jsonl`；应用不会将其上传到后端。
+- **Load Project JSONLs：** 通过 Vite `import.meta.glob` 读取 `jsonl/` 中的开发样例。这些文件会成为构建产物，不应在公开部署中放入私有或大型实验日志。
+- **Live Monitor：** 在本地开发环境中每秒轮询一次最新 frame JSON 快照。
 
-如果要在其他工作区使用，需要修改：
+## 轨迹对齐
+
+选中 RLM 日志后，Viewer 会选择运行时间戳最接近的 frame 日志。在每个 code block 内，动作后画面按以下顺序恢复：
+
+1. 当前 logger 输出的结构化 `action_events`；
+2. renderer 输出中的 step ID，并与配套 frame 日志匹配；
+3. REPL locals 中保留的 action-result 对象；
+4. 最后从 stdout/code 中解析旧版 `make_action(...)` payload。
+
+该优先级在兼容旧日志的同时避免重复计数。每轮 action 摘要也优先使用结构化事件，必要时回退至 renderer step 和静态调用。
+
+## Live Monitor 集成
+
+Live mode 目前是本地研究集成，而非可移植的服务端 API。如果要在其他工作区使用，需要修改：
 
 - `src/app/App.tsx` 中的 `LIVE_FEED_URL`，使其指向生成的快照；
-- 如果快照位于本仓库之外，修改 `vite.config.ts` 中的 `server.fs.allow`。
+- 如果快照位于仓库之外，修改 `vite.config.ts` 中的 `server.fs.allow`。
 
-快照内容可以直接是一条 `arg_agi_frame` record，也可以是一个在 `record` 字段中包含该记录的对象。离线上传仍然是最简单、最可移植的使用方式。
+快照可以直接是一条 `arg_agi_frame` record，也可以在 `record` 字段中包含该记录。离线上传无需文件系统配置，是更可移植的使用路径。
 
-## 项目结构
+## 仓库结构
 
 ```text
 .
-├── jsonl/                         # 本地开发轨迹（Git 忽略）
-├── src/app/App.tsx                # 文件配对与实时监控编排
+├── docs/images/                    # README demo 与界面图片
+├── jsonl/                          # 本地样例；Git 忽略
+├── src/app/App.tsx                 # 文件配对与实时监控编排
 ├── src/app/components/
-│   ├── ArgAgiFrameViewer.tsx      # ARC 画面渲染与回放
-│   ├── FileUpload.tsx             # JSONL 加载与运行选择
-│   ├── MetadataView.tsx           # 运行级元数据
-│   └── TrajectoryTimeline.tsx     # RLM iteration、动作与 REPL 细节
-└── vite.config.ts                 # Vite 与本地文件访问配置
+│   ├── ArgAgiFrameViewer.tsx       # 网格渲染与 frame 回放
+│   ├── FileUpload.tsx              # JSONL 读取与运行选择
+│   ├── MetadataView.tsx            # 运行级元数据
+│   └── TrajectoryTimeline.tsx      # Iteration、动作与 REPL 轨迹
+└── vite.config.ts                  # 构建与本地文件访问配置
 ```
 
 ## 局限性
 
-- 解析逻辑具有一定兼容性，但仍主要面向当前 RLM/ARC 日志格式。
-- 实时监控依赖本地配置的文件路径和 Vite 开发服务器。
-- 完整 frame 历史可能产生很大的 JSONL 文件并占用较多浏览器内存。
-- 这是研究调试工具，不支持编辑轨迹或计算 benchmark 指标。
+- Schema adapter 具有一定容错能力，但仍主要面向配套 RLM/ARC 集成。
+- 大型完整 frame 历史会占用较多构建空间和浏览器内存。
+- Live feed 依赖本地配置路径和 Vite 开发服务器。
+- 本工具用于轨迹审计，不负责编辑日志、汇总 benchmark 指标，也不能替代可复现的 evaluation harness。
 
-## 相关项目
+## 来源与致谢
 
-本 Viewer 配套用于 [Long-Horizon LLM Agent Post-Training for ARC-AGI-3](https://github.com/yuran986/arc-agi-3-agent-post-training)。
-
-初始界面使用 [Figma Make](https://www.figma.com/design/cYp0fr79jqgMOx5XeJgYkk/Trajectory-Visualization-Web-Page) 制作原型。第三方声明见 [ATTRIBUTIONS.md](ATTRIBUTIONS.md)。
+本 Viewer 是 ARC-AGI-3 Agent 后训练研究的轨迹分析组件。初始界面使用 [Figma Make](https://www.figma.com/design/cYp0fr79jqgMOx5XeJgYkk/Trajectory-Visualization-Web-Page) 制作原型。第三方声明见 [ATTRIBUTIONS.md](ATTRIBUTIONS.md)。

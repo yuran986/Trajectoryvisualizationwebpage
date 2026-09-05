@@ -2,110 +2,127 @@
 
 # RLM Trajectory Viewer
 
-An interactive web interface for inspecting Recursive Language Model (RLM) execution traces alongside ARC-AGI-3 environment frames. It was developed to diagnose long-horizon agent behavior by aligning model responses, REPL execution, actions, visual states, and timing in one place.
+Companion analysis artifact for [Long-Horizon LLM Agent Post-Training for ARC-AGI-3](https://github.com/yuran986/arc-agi-3-agent-post-training). The viewer reconstructs long-horizon agent behavior from RLM execution logs and ARC-AGI-3 frame streams, aligning reasoning, code execution, actions, visual state, and timing for trajectory-level diagnosis.
+
+## Overview
+
+Aggregate reward curves cannot distinguish genuine task learning from repeated actions that exploit a shaping signal. This tool makes that distinction inspectable. It supports both live environment monitoring and offline analysis, and preserves the hierarchy from run metadata to completion, iteration, code block, action event, and post-action frame.
 
 <p align="center">
   <img src="docs/images/viewer-demo.gif" alt="RLM Trajectory Viewer demo showing ARC-AGI-3 offline playback and action-level trace inspection" width="100%">
 </p>
 
-<p align="center"><em>Load paired trajectory logs, scrub through offline frames, switch to the corresponding RLM trace, and expand an iteration to inspect its executed actions.</em></p>
+<p align="center"><em>Load paired logs, scrub through recorded environment states, switch to the associated RLM trace, and expand an iteration to inspect its executed actions.</em></p>
 
-## Features
+## Supported analyses
 
-- **RLM trace inspection:** browse run metadata, queries, system prompts, model responses, REPL code, stdout/stderr, nested model calls, and execution time.
-- **ARC-AGI-3 frame playback:** render color-grid observations with step, action, coordinates, game state, and completed-level metadata.
-- **Action-to-frame alignment:** associate RLM iterations and action events with the corresponding environment frames.
-- **Compact iteration summaries:** start every iteration collapsed while retaining its completion step, executed-action count, status, and duration in the header.
-- **Long-trajectory navigation:** group records by completion and iteration, expand details on demand, and move through frame sequences.
-- **Multiple input modes:** drag and drop local JSONL files, load JSONLs bundled with the project, or monitor a locally generated live snapshot.
-- **Local file handling:** uploaded trajectories are parsed in the browser and are not sent to a backend by this application.
+| Analysis question | Viewer evidence |
+|---|---|
+| Did reward correspond to task progress? | Environment state, `levels_completed`, action sequence, and frame transitions |
+| Did the policy act or only reason? | Per-iteration executed-action count and completion step |
+| What did one action change? | Action name/coordinates aligned with the post-action frame |
+| Did the model use the observation correctly? | Model response, REPL code, stdout/stderr, and rendered transition in one iteration |
+| Where did a long rollout fail? | Completion-grouped timeline, duration, final answer, and terminal state |
+| Is the issue in one log stream? | Timestamp-based pairing of RLM and environment-frame JSONLs |
 
-## Offline playback
+## Interface
+
+<details>
+<summary><strong>Live and offline frame playback</strong></summary>
 
 <p align="center">
   <img src="docs/images/offline-playback.png" alt="ARC-AGI-3 live monitor and offline frame playback with a timeline slider" width="100%">
 </p>
 
-<p align="center"><em>Live and recorded frames use the same rendering scale. The offline panel exposes a slider for inspecting state, action, coordinates, and level progress at any recorded step.</em></p>
+Live and recorded frames share the same rendering scale. The offline slider retrieves the state, action, coordinates, and level progress at any recorded step.
 
-## Action-level inspection
+</details>
+
+<details>
+<summary><strong>Iteration and action-level inspection</strong></summary>
 
 <p align="center">
   <img src="docs/images/action-level-inspection.png" alt="Expanded RLM iteration showing its action count, Action Frames, and renderer output" width="100%">
 </p>
 
-<p align="center"><em>An iteration summary reports five executed actions; expanding it reveals the response, REPL code, individual Action Frames, and renderer output.</em></p>
+Iterations are collapsed by default and summarize completion step, executed actions, depth, status, and duration. Expanding an iteration reveals the model response, REPL code, individual Action Frames, output/error streams, recursive calls, and final answer.
 
-For each code block, the viewer attempts to recover every post-action frame. It prioritizes structured `action_events`, then matches steps from a paired ARC frame log, and finally supports legacy traces by extracting action results from REPL locals or stdout. This makes repeated actions and no-op transitions visible without reading raw nested arrays.
+</details>
 
-## Quick start
+## Installation
 
 ```bash
+git clone https://github.com/yuran986/Trajectoryvisualizationwebpage.git
+cd Trajectoryvisualizationwebpage
 npm install
 npm run dev
 ```
 
-Open the local URL printed by Vite. For a production build:
+Open the local URL printed by Vite. To verify a production build:
 
 ```bash
 npm run build
 ```
 
-## Loading trajectories
+## Input data
 
-### Upload local files
+The viewer consumes newline-delimited JSON, with one object per line. It recognizes two complementary streams:
 
-Click **Upload Files** or drag one or more `.jsonl` files into the upload area. Loading both an RLM trace and its ARC frame log enables synchronized inspection. When several frame logs are present, the viewer pairs the closest run using timestamps and then aligns frames with trajectory actions.
-
-### Load project JSONLs
-
-Place development fixtures in `jsonl/`, restart the Vite server if necessary, and click **Load Project JSONLs**. These files are discovered through `import.meta.glob` and become build assets, so private or large experiment logs should not be committed or included in a public deployment.
-
-## Supported records
-
-The viewer is tailored to the JSONL output of the accompanying RLM and ARC-AGI-3 integration. It recognizes two main streams:
-
-| Stream | Record types | Important fields |
+| Stream | Record types | Required or commonly used fields |
 |---|---|---|
-| RLM execution log | `metadata`, `iteration` | model/backend settings, prompt, response, `code_blocks`, execution results, completion/iteration IDs |
-| ARC frame log | `arg_agi_frame` | `timestamp`, `step`, `state`, `levels_completed`, `action`, `action_xy`, `frame` |
+| RLM execution | `metadata`, `iteration` | model/backend settings, prompt, response, `code_blocks`, execution results, completion/iteration IDs |
+| ARC environment | `arg_agi_frame` | `timestamp`, `step`, `state`, `levels_completed`, `action`, `action_xy`, `frame` |
 
-Each line must contain one valid JSON object. Frame payloads are expected to contain a color-index grid, commonly shaped as `[1, height, width]`.
+Frame payloads should contain a numeric color-index grid, typically `[1, height, width]`. The parser accepts several historical action-result layouts to preserve compatibility with earlier experiments.
 
-## Live monitoring
+### Loading modes
 
-The page polls a latest-frame JSON snapshot once per second and displays it in the live monitor. This mode is currently configured for the local ARC-AGI-3 research workspace rather than as a portable server API.
+- **Upload Files:** parse one or more local `.jsonl` files entirely in the browser. The application does not upload them to a backend.
+- **Load Project JSONLs:** load development fixtures from `jsonl/` through Vite's `import.meta.glob`. These files become build assets; do not place private or large experiment logs there for public deployment.
+- **Live Monitor:** poll a latest-frame JSON snapshot once per second in the local development environment.
 
-To use it in another workspace, update:
+## Trace alignment
 
-- `LIVE_FEED_URL` in `src/app/App.tsx` to point to the generated snapshot;
-- `server.fs.allow` in `vite.config.ts` if the snapshot is outside this repository.
+When an RLM log is selected, the viewer chooses the frame log with the nearest run timestamp. Within each code block, post-action frames are recovered in the following order:
 
-The expected payload is either an `arg_agi_frame` record or an object whose `record` field contains one. Offline upload remains the simplest portable mode.
+1. structured `action_events` emitted by the current logger;
+2. step IDs reported by renderer output, matched against the paired frame log;
+3. action-result objects retained in REPL locals;
+4. legacy `make_action(...)` payloads parsed from stdout/code as a fallback.
 
-## Project structure
+This precedence avoids double counting while retaining useful visualization for older logs. Per-iteration action summaries use the same structured events first, then renderer steps and static calls when necessary.
+
+## Live-monitor integration
+
+Live mode is currently a local research integration rather than a portable server API. To use it in another workspace, update:
+
+- `LIVE_FEED_URL` in `src/app/App.tsx` to the generated snapshot;
+- `server.fs.allow` in `vite.config.ts` when the snapshot is outside this repository.
+
+The snapshot may be an `arg_agi_frame` record directly or an object containing that record under `record`. Offline upload is the portable path and requires no filesystem configuration.
+
+## Repository structure
 
 ```text
 .
-├── jsonl/                         # Local development trajectories (ignored by Git)
-├── src/app/App.tsx                # File pairing and live-monitor orchestration
+├── docs/images/                    # README demo and interface figures
+├── jsonl/                          # Local fixtures; ignored by Git
+├── src/app/App.tsx                 # Pairing and live-monitor orchestration
 ├── src/app/components/
-│   ├── ArgAgiFrameViewer.tsx      # ARC frame rendering and playback
-│   ├── FileUpload.tsx             # JSONL loading and run selection
-│   ├── MetadataView.tsx           # Run-level metadata
-│   └── TrajectoryTimeline.tsx     # RLM iterations, actions, and REPL details
-└── vite.config.ts                 # Vite and local-file access configuration
+│   ├── ArgAgiFrameViewer.tsx       # Grid rendering and frame playback
+│   ├── FileUpload.tsx              # JSONL ingestion and run selection
+│   ├── MetadataView.tsx            # Run-level metadata
+│   └── TrajectoryTimeline.tsx      # Iterations, actions, and REPL traces
+└── vite.config.ts                  # Build and local filesystem configuration
 ```
 
 ## Limitations
 
-- Parsing is schema-tolerant but still specialized for the current RLM/ARC logging format.
-- Live monitoring depends on a locally configured file path and the Vite development server.
-- Full frame histories can create very large JSONL files and browser memory usage.
-- This is a research debugging tool; it does not edit trajectories or calculate benchmark metrics.
+- The schema adapters are intentionally tolerant but remain specialized for the accompanying RLM/ARC integration.
+- Large full-frame histories can consume substantial build size and browser memory.
+- The live feed depends on a locally configured path and the Vite development server.
+- The tool audits trajectories; it does not edit logs, aggregate benchmark metrics, or replace a reproducible evaluation harness.
 
-## Related project
+## Provenance and acknowledgment
 
-The viewer accompanies [Long-Horizon LLM Agent Post-Training for ARC-AGI-3](https://github.com/yuran986/arc-agi-3-agent-post-training).
-
-The initial interface was prototyped with [Figma Make](https://www.figma.com/design/cYp0fr79jqgMOx5XeJgYkk/Trajectory-Visualization-Web-Page). Third-party notices are listed in [ATTRIBUTIONS.md](ATTRIBUTIONS.md).
+The viewer was developed as the trajectory-analysis component of the ARC-AGI-3 agent post-training study. The initial interface was prototyped with [Figma Make](https://www.figma.com/design/cYp0fr79jqgMOx5XeJgYkk/Trajectory-Visualization-Web-Page). Third-party notices are recorded in [ATTRIBUTIONS.md](ATTRIBUTIONS.md).
