@@ -5,10 +5,10 @@
 An interactive web interface for inspecting Recursive Language Model (RLM) execution traces alongside ARC-AGI-3 environment frames. It was developed to diagnose long-horizon agent behavior by aligning model responses, REPL execution, actions, visual states, and timing in one place.
 
 <p align="center">
-  <img src="docs/images/rlm-trajectory-overview.png" alt="RLM Trajectory Viewer displaying an ARC-AGI-3 frame and its execution trace" width="100%">
+  <img src="docs/images/viewer-demo.gif" alt="RLM Trajectory Viewer demo showing ARC-AGI-3 offline playback and action-level trace inspection" width="100%">
 </p>
 
-<p align="center"><em>Workspace overview: upload and select runs, monitor the latest environment frame, inspect metadata, and navigate completion-grouped RLM iterations.</em></p>
+<p align="center"><em>Load paired trajectory logs, scrub through offline frames, switch to the corresponding RLM trace, and expand an iteration to inspect its executed actions.</em></p>
 
 ## Features
 
@@ -20,13 +20,21 @@ An interactive web interface for inspecting Recursive Language Model (RLM) execu
 - **Multiple input modes:** drag and drop local JSONL files, load JSONLs bundled with the project, or monitor a locally generated live snapshot.
 - **Local file handling:** uploaded trajectories are parsed in the browser and are not sent to a backend by this application.
 
+## Offline playback
+
+<p align="center">
+  <img src="docs/images/offline-playback.png" alt="ARC-AGI-3 live monitor and offline frame playback with a timeline slider" width="100%">
+</p>
+
+<p align="center"><em>Live and recorded frames use the same rendering scale. The offline panel exposes a slider for inspecting state, action, coordinates, and level progress at any recorded step.</em></p>
+
 ## Action-level inspection
 
 <p align="center">
-  <img src="docs/images/action-frame-inspection.png" alt="Action Frames panel aligning RLM code with an ARC-AGI-3 post-action frame" width="100%">
+  <img src="docs/images/action-level-inspection.png" alt="Expanded RLM iteration showing its action count, Action Frames, and renderer output" width="100%">
 </p>
 
-<p align="center"><em>One iteration expanded from model response to REPL code and the resulting ACTION6 frame, including step, coordinates, state, and level progress.</em></p>
+<p align="center"><em>An iteration summary reports five executed actions; expanding it reveals the response, REPL code, individual Action Frames, and renderer output.</em></p>
 
 For each code block, the viewer attempts to recover every post-action frame. It prioritizes structured `action_events`, then matches steps from a paired ARC frame log, and finally supports legacy traces by extracting action results from REPL locals or stdout. This makes repeated actions and no-op transitions visible without reading raw nested arrays.
 
