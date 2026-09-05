@@ -208,18 +208,18 @@ export default function App() {
 
           <div className="lg:col-span-2 space-y-4">
             <ArgAgiFrameViewer
-              title="ARG-AGI Live Monitor"
+              title="ARC-AGI-3 Live Monitor"
               compact
               records={liveRecord ? [liveRecord] : []}
               statusBadge={liveStatusBadge}
-              emptyMessage="Live feed not detected yet. Start arg-agi runner to publish rlm/arg-agi/log_frame/arg_agi_live_latest.json."
+              emptyMessage="Live feed not detected yet. Start the ARC-AGI-3 runner to publish rlm/arg-agi/log_frame/arg_agi_live_latest.json."
             />
 
             {selectedFile ? (
               <div className="space-y-4">
                 {isArgAgiFrameFile ? (
                   <ArgAgiFrameViewer
-                    title={`ARG-AGI Offline Playback: ${selectedFile.name}`}
+                    title={`ARC-AGI-3 Offline Playback: ${selectedFile.name}`}
                     records={argAgiFrames}
                     emptyMessage="This file does not contain arg_agi_frame records."
                   />
